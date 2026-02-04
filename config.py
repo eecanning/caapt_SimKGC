@@ -9,7 +9,7 @@ import torch.backends.cudnn as cudnn
 parser = argparse.ArgumentParser(description='SimKGC arguments')
 parser.add_argument('--pretrained-model', default='bert-base-uncased', type=str, metavar='N',
                     help='path to pretrained model')
-parser.add_argument('--task', default='wn18rr', type=str, metavar='N',
+parser.add_argument('--task', default='queer', type=str, metavar='N',
                     help='dataset name')
 parser.add_argument('--train-path', default='', type=str, metavar='N',
                     help='path to training data')
@@ -83,7 +83,7 @@ args = parser.parse_args()
 
 assert not args.train_path or os.path.exists(args.train_path)
 assert args.pooling in ['cls', 'mean', 'max']
-assert args.task.lower() in ['wn18rr', 'fb15k237', 'wiki5m_ind', 'wiki5m_trans']
+assert args.task.lower() in ['wn18rr', 'fb15k237', 'wiki5m_ind', 'wiki5m_trans', 'all', 'black', 'gay', 'indian', 'orient', 'queer']
 assert args.lr_scheduler in ['linear', 'cosine']
 
 if args.model_dir:

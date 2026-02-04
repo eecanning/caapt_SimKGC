@@ -28,9 +28,36 @@ class TripletDict:
             self._load(path)
         logger.info('Triplet statistics: {} relations, {} triplets'.format(len(self.relations), self.triplet_cnt))
 
-    def _load(self, path: str):
-        examples = json.load(open(path, 'r', encoding='utf-8'))
-        examples += [reverse_triplet(obj) for obj in examples]
+            # Load raw JSON and normalize entries so they contain both
+        # 'head'/'tail' (textual) and 'head_id'/'tail_id' (id strings).
+        raw = json.load(open(path, 'r', encoding='utf-8'))
+
+        # Expect a list of triplet objects; if not, skip this file.
+        if not isinstance(raw, list):
+            logger.warning('Triplet file {} does not contain a list — skipping'.format(path))
+            return
+
+        normalized = []
+        for obj in raw:
+            if not isinstance(obj, dict):
+                continue
+            # Ensure id fields exist: if only 'head'/'tail' present, use them as ids
+            if 'head_id' not in obj and 'head' in obj:
+                obj['head_id'] = obj['head']
+            if 'tail_id' not in obj and 'tail' in obj:
+                obj['tail_id'] = obj['tail']
+            # Ensure textual fields exist: fallback to id strings when missing
+            if 'head' not in obj:
+                obj['head'] = obj.get('head_id', '')
+            if 'tail' not in obj:
+                obj['tail'] = obj.get('tail_id', '')
+            # Only keep entries that at least have head_id/tail_id/relation
+            if 'head_id' in obj and 'tail_id' in obj and 'relation' in obj:
+                normalized.append(obj)
+
+        # Add reverse triplets based on normalized list
+        examples = normalized + [reverse_triplet(obj) for obj in normalized]
+
         for ex in examples:
             self.relations.add(ex['relation'])
             key = (ex['head_id'], ex['relation'])
@@ -38,7 +65,7 @@ class TripletDict:
                 self.hr2tails[key] = set()
             self.hr2tails[key].add(ex['tail_id'])
         self.triplet_cnt = len(examples)
-
+    
     def get_neighbors(self, h: str, r: str) -> set:
         return self.hr2tails.get((h, r), set())
 

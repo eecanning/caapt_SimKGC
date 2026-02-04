@@ -27,10 +27,32 @@ def _init_train_triplet_dict():
 
 
 def _init_all_triplet_dict():
-    global all_triplet_dict
-    if not all_triplet_dict:
-        path_pattern = '{}/*.json'.format(os.path.dirname(args.train_path))
-        all_triplet_dict = TripletDict(path_list=glob.glob(path_pattern))
+        global all_triplet_dict
+        if not all_triplet_dict:
+            data_dir = os.path.dirname(args.train_path)
+
+            # Only consider known triplet filenames (train/valid/test and their _aug variants).
+            # This avoids accidentally loading non-triplet JSONs such as entities.json,
+            # entity2id.json, or relation2id.json which will break TripletDict.
+            candidates = [
+                'train.json', 'train_aug.json',
+                'valid.json', 'valid_aug.json',
+                'test.json', 'test_aug.json'
+            ]
+
+            path_list = []
+            for fn in candidates:
+                p = os.path.join(data_dir, fn)
+                if os.path.exists(p):
+                    path_list.append(p)
+
+            if not path_list:
+                # fallback: if none of the standard candidates exist, try the previous pattern
+                # but prefer to warn so users can correct their data layout.
+                logger.warning('No standard triplet files found in {}. Falling back to globbing *.json.'.format(data_dir))
+                path_list = glob.glob(os.path.join(data_dir, '*.json'))
+
+            all_triplet_dict = TripletDict(path_list=path_list)
 
 
 def _init_link_graph():

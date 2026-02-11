@@ -28,7 +28,8 @@ class TripletDict:
             self._load(path)
         logger.info('Triplet statistics: {} relations, {} triplets'.format(len(self.relations), self.triplet_cnt))
 
-            # Load raw JSON and normalize entries so they contain both
+    def _load(self, path: str):
+        # Load raw JSON and normalize entries so they contain both
         # 'head'/'tail' (textual) and 'head_id'/'tail_id' (id strings).
         raw = json.load(open(path, 'r', encoding='utf-8'))
 

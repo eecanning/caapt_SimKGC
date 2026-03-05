@@ -12,8 +12,7 @@ setattr(args, "eval_model_path", "/content/drive/MyDrive/simkgc_checkpoints/quee
 
 # Shortlist / soft-label file locations (adjust if you placed them elsewhere)
 setattr(args, "shortlist_map_path", "/content/SimKGC_caapt/data/shortlists/allowed_tails_by_relation_and_term.json")
-setattr(args, "soft_labels_path", "/content/SimKGC_caapt/data/shortlists/soft_labels_by_hr.json")
-setattr(args, "shortlist_term", "queer")
+setattr(args, "soft_labels_path", "/content/SimKGC_caapt/data/shortlists/soft_labels_by_hr_onehot_counts.json")
 setattr(args, "shortlist_output_dir", "/content/drive/MyDrive/hybrid_task5/SIM-KGC/")
 setattr(args, "shortlist_ece_bins", 10)
 setattr(args, "entity2id_path", "/content/SimKGC_caapt/data/queer/entity2id.json")

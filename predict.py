@@ -50,11 +50,30 @@ class BertPredictor:
         logger.info('Load model from {} successfully'.format(ckt_path))
 
     def _setup_args(self):
+        # Merge checkpoint args with current global defaults (do not overwrite existing checkpoint keys)
         for k, v in args.__dict__.items():
             if k not in self.train_args.__dict__:
                 logger.info('Set default attribute: {}={}'.format(k, v))
                 self.train_args.__dict__[k] = v
-        logger.info('Args used in training: {}'.format(json.dumps(self.train_args.__dict__, ensure_ascii=False, indent=4)))
+
+        # ---- FORCE SHORTLIST EVAL AT PREDICTION TIME ----
+        # Override checkpoint value regardless of what was saved during training
+        self.train_args.use_shortlist_eval = True
+
+        # (Optional but recommended for consistency with your wrapper)
+        self.train_args.shortlist_map_path = getattr(args, "shortlist_map_path", self.train_args.shortlist_map_path)
+        self.train_args.soft_labels_path = getattr(args, "soft_labels_path", self.train_args.soft_labels_path)
+        self.train_args.entity2id_path = getattr(args, "entity2id_path", self.train_args.entity2id_path)
+        self.train_args.shortlist_term = getattr(args, "shortlist_term", self.train_args.shortlist_term)
+        self.train_args.shortlist_output_dir = getattr(args, "shortlist_output_dir", self.train_args.shortlist_output_dir)
+        self.train_args.focus_term = getattr(args, "focus_term", self.train_args.focus_term)
+        self.train_args.shortlist_ece_bins = getattr(args, "shortlist_ece_bins", self.train_args.shortlist_ece_bins)
+
+        logger.info('Args used in training: {}'.format(
+            json.dumps(self.train_args.__dict__, ensure_ascii=False, indent=4)
+        ))
+
+        # Preserve original behavior
         args.use_link_graph = self.train_args.use_link_graph
         args.is_test = True
 

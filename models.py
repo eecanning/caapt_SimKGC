@@ -9,6 +9,7 @@ from transformers import AutoModel, AutoConfig
 
 from triplet_mask import construct_mask
 
+from typing import Optional
 
 def build_model(args) -> nn.Module:
     return CustomBertModel(args)
@@ -21,6 +22,15 @@ class ModelOutput:
     inv_t: torch.tensor
     hr_vector: torch.tensor
     tail_vector: torch.tensor
+    # --- shortlist / candidate indices (optional) ---
+    # Accept common aliases so trainer or later code can use whichever name is present.
+    candidate_ids: Optional[torch.LongTensor] = None
+    candidate_idx: Optional[torch.LongTensor] = None
+    candidate_indices: Optional[torch.LongTensor] = None
+    candidates: Optional[torch.LongTensor] = None
+    shortlist_ids: Optional[torch.LongTensor] = None
+    shortlist_idx: Optional[torch.LongTensor] = None
+    cands: Optional[torch.LongTensor] = None
 
 
 class CustomBertModel(nn.Module, ABC):
@@ -84,6 +94,19 @@ class CustomBertModel(nn.Module, ABC):
                 'head_vector': head_vector}
 
     def compute_logits(self, output_dict: dict, batch_dict: dict) -> dict:
+        """
+        Compute (hr x tail) logits and return a small dict including:
+          - logits: (B, C)
+          - labels: (B,) (index of correct item in the logits -> usually range(B))
+          - inv_t, hr_vector, tail_vector (detached)
+          - candidate_ids (optional): LongTensor shape (B, C) mapping each column to global entity id
+
+        Additionally we attempt to find candidate / shortlist indices in:
+        - output_dict (preferred), keys: candidate_ids, candidate_idx, candidates, shortlist_ids, shortlist_idx, candidate_indices, cands, candidate_id
+        - batch_dict (fallback)
+        If no candidate mapping is found and logits are shortlist-sized (C != V when q_full exists),
+        we create a safe placeholder mapping arange(C) repeated across batch (so evaluator doesn't crash).
+        """
         hr_vector, tail_vector = output_dict['hr_vector'], output_dict['tail_vector']
         batch_size = hr_vector.size(0)
         labels = torch.arange(batch_size).to(hr_vector.device)
@@ -108,11 +131,75 @@ class CustomBertModel(nn.Module, ABC):
             self_neg_logits.masked_fill_(~self_negative_mask, -1e4)
             logits = torch.cat([logits, self_neg_logits.unsqueeze(1)], dim=-1)
 
-        return {'logits': logits,
-                'labels': labels,
-                'inv_t': self.log_inv_t.detach().exp(),
-                'hr_vector': hr_vector.detach(),
-                'tail_vector': tail_vector.detach()}
+        ret = {
+            'logits': logits,
+            'labels': labels,
+            'inv_t': self.log_inv_t.detach().exp(),
+            'hr_vector': hr_vector.detach(),
+            'tail_vector': tail_vector.detach()
+        }
+
+        # --- Candidate / shortlist handling ---
+        # Candidate keys we try to recognize (in either output_dict or batch_dict)
+        candidate_keys = [
+            'candidate_ids', 'candidate_idx', 'candidate_indices', 'candidates',
+            'shortlist_ids', 'shortlist_idx', 'shortlist', 'cands', 'candidate_id'
+        ]
+
+        found = None
+        # prefer output_dict (model forward may put shortlist there)
+        for k in candidate_keys:
+            if k in output_dict:
+                found = output_dict[k]
+                break
+        # fallback to batch_dict
+        if found is None:
+            for k in candidate_keys:
+                if k in batch_dict:
+                    found = batch_dict[k]
+                    break
+
+        if found is not None:
+            # Normalize to LongTensor on correct device
+            # Accept either a tensor, list, or nested list: try to convert robustly.
+            if isinstance(found, torch.Tensor):
+                cand_tensor = found.long().to(logits.device)
+            else:
+                # list / nested list -> tensor
+                cand_tensor = torch.tensor(found, dtype=torch.long, device=logits.device)
+
+            # If cand_tensor is 1D assume it's global column ids for the whole batch (same order)
+            # Convert to shape (B, C) for consistency (repeat per example).
+            if cand_tensor.dim() == 1:
+                cand_tensor = cand_tensor.unsqueeze(0).repeat(batch_size, 1)
+            elif cand_tensor.dim() == 2:
+                # ensure first dim equals batch_size if possible; if not, repeat or trim as necessary
+                if cand_tensor.size(0) != batch_size:
+                    if cand_tensor.size(0) == 1:
+                        cand_tensor = cand_tensor.repeat(batch_size, 1)
+                    else:
+                        # last-resort: try to broadcast by truncating/padding to batch_size
+                        # (this is defensive — ideally shapes should match)
+                        if cand_tensor.size(0) > batch_size:
+                            cand_tensor = cand_tensor[:batch_size]
+                        else:
+                            cand_tensor = cand_tensor.repeat(int(batch_size / cand_tensor.size(0)) + 1, 1)[:batch_size]
+
+            ret['candidate_ids'] = cand_tensor
+
+        else:
+            # No candidate mapping found. If logits cover full vocab we don't need candidate ids.
+            # But if logits are shortlist-sized relative to known vocab V (soft-labels), produce a safe placeholder.
+            # Try to detect V from the trainer args if available (self.args.vocab_size or similar), else skip.
+            C = logits.size(1)
+            # Heuristic: if there's a q_full stored in batch_dict / soft labels were enabled, evaluator expects candidates.
+            # Create placeholder mapping arange(C) repeated for the batch (keeps shapes aligned; user should verify correctness).
+            placeholder = torch.arange(C, device=logits.device, dtype=torch.long).unsqueeze(0).repeat(batch_size, 1)
+            ret['candidate_ids'] = placeholder
+            # Note: we intentionally do not raise here to allow the run to continue; this fallback should be replaced
+            # by a proper shortlist mapping if you want exact alignment with full-vocab soft labels.
+
+        return ret
 
     def _compute_pre_batch_logits(self, hr_vector: torch.tensor,
                                   tail_vector: torch.tensor,

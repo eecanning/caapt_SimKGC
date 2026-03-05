@@ -191,6 +191,7 @@ def eval_single_direction(predictor: BertPredictor,
     soft_labels_path = getattr(args, "soft_labels_path", default_soft_labels)
     shortlist_term = getattr(args, "shortlist_term", "all")
     output_dir = getattr(args, "shortlist_output_dir", default_output_dir)
+    focus_term = getattr(args, "focus_term", "focus")
     ece_bins = getattr(args, "shortlist_ece_bins", 10)
 
     # Initialize holders for classic (full-ranking) outputs in case shortlist is not used
@@ -374,11 +375,11 @@ def eval_single_direction(predictor: BertPredictor,
         )
 
         Path(output_dir).mkdir(parents=True, exist_ok=True)
-        term = shortlist_term
-        focus = getattr(args, "focus", "detail")
-        model_csv = Path(output_dir) / f"SIMKGC_{term}_{focus}_model_summary.csv"
-        per_hr_csv = Path(output_dir) / f"SIMKGC_{term}_{focus}_results_per_hr.csv"
-        per_triple_csv = Path(output_dir) / f"SIMKGC_{term}_{focus}_results_per_triple.csv"
+        TERM = shortlist_term
+        FOCUS = focus_term
+        model_csv = Path(output_dir) / f"SIMKGC_{TERM}_{FOCUS}_model_summary.csv"
+        per_hr_csv = Path(output_dir) / f"SIMKGC_{TERM}_{FOCUS}_results_per_hr.csv"
+        per_triple_csv = Path(output_dir) / f"SIMKGC_{TERM}_{FOCUS}_results_per_triple.csv"
 
         df_model = _pd.DataFrame([model_metrics])
         # Resolve model directory from eval_model_path (prefix may not be defined earlier in this scope)

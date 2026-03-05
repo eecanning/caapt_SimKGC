@@ -98,6 +98,8 @@ parser.add_argument('--shortlist-output-dir', default='', type=str,
                     help='output dir for shortlist CSVs (if empty uses model_dir)')
 parser.add_argument('--shortlist-ece-bins', default=10, type=int,
                     help='number of bins for ECE calculation')
+parser.add_argument('--focus-term', default='focus', type=str,
+                    help='term used to select focus')
 
 # --- NEW early stopping args (added per your request) ---
 parser.add_argument('--early-stopping-patience', default=5, type=int,
@@ -121,6 +123,7 @@ args.shortlist_map_path = getattr(args, "shortlist_map_path", args.shortlist_map
 args.soft_labels_path = getattr(args, "soft_labels_path", args.soft_labels_path)
 args.entity2id_path = getattr(args, "entity2id_path", args.entity2id_path)
 args.shortlist_term = getattr(args, "shortlist_term", args.shortlist_term)
+args.focus_term = getattr(args, "focus_term", args.focus_term)
 args.shortlist_output_dir = getattr(args, "shortlist_output_dir", args.shortlist_output_dir)
 args.shortlist_ece_bins = getattr(args, "shortlist_ece_bins", args.shortlist_ece_bins)
 
